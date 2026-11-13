@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ефективність Фокусу — Albion Guild Hub</title>
+<link rel="stylesheet" href="/assets/css/theme.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.14.1/cdn.min.js" defer></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/app.js"></script>
+</head>
+<body x-data="{...appShell(), ...focusPage()}" x-init="init(); load()">
+<div class="app-shell">
+  <aside class="sidebar" :class="{open: sidebarOpen}">
+    <div class="brand">⚔️ Albion Guild Hub</div>
+    <nav>
+      <a href="/dashboard.html">🏠 Дашборд</a>
+      <div class="section-label">Економіка</div>
+      <a href="/islands.html">🏝️ Острови та робітники</a>
+      <a href="/refining.html">⚙️ Переробка та Крафт</a>
+      <a href="/arbitrage.html">🚚 Арбітраж та Торгівля</a>
+      <a href="/focus.html" class="active">⚡ Ефективність Фокусу</a>
+      <div class="section-label">Гільдія</div>
+      <a href="/guild-islands.html">🏰 Гільдійський острів</a>
+      <a href="/sets.html">🛡️ Сети та КТА</a>
+      <a href="/treasury.html">💰 Скарбниця</a>
+      <template x-if="user && ['moderator','admin'].includes(user.role)"><a href="/admin.html">🔧 Адмінпанель</a></template>
+          <div class="section-label">Акаунт</div>
+      <a href="/profile.html">👤 Мій профіль</a>
+    </nav>
+  </aside>
+  <div class="main-area">
+    <div class="topbar">
+      <h1>⚡ Ефективність Фокусу</h1>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="theme-toggle" @click="toggleTheme()"><span x-text="theme==='dark'?'🌙':'☀️'"></span></div>
+        <div class="notif-bell" @click="notifPanelOpen = !notifPanelOpen">🔔<span class="notif-dot" x-show="unreadCount>0"></span></div>
+        <button class="btn-secondary btn-sm" @click="logout()">Вийти</button>
+      </div>
+    </div>
+    <div class="card notif-panel" x-show="notifPanelOpen" @click.outside="notifPanelOpen=false" x-cloak>
+      <template x-for="n in notifications" :key="n.id"><div class="notif-item"><div style="font-weight:600;" x-text="n.title"></div><button class="btn-ghost btn-sm" @click="markRead(n.id)">Прочитано</button></div></template>
+    </div>
+
+    <div class="content">
+      <div class="grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="card">
+          <h3 style="margin-top:0;">Новий розрахунок</h3>
+          <div class="field"><label>Активність</label><input x-model="f.activityName" placeholder="Крафт T8 мечів у гільд. острові" /></div>
+          <div class="grid grid-2">
+            <div class="field"><label>Витрачено фокусу</label><input type="number" x-model.number="f.focusCost" /></div>
+            <div class="field"><label>Отримано чистого срібла</label><input type="number" x-model.number="f.silverOutput" /></div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button @click="calculate()">Порахувати</button>
+            <button class="btn-secondary" @click="save()">Зберегти</button>
+          </div>
+          <template x-if="result">
+            <div class="card" style="margin-top:14px;">
+              <div class="stat-label">Срібло за 1 фокус</div>
+              <div class="stat-value text-gold" x-text="fmtSilver(result.silverPerFocus)"></div>
+            </div>
+          </template>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">🏆 Топ активностей (за середнім Silver/Focus)</h3>
+          <table>
+            <thead><tr><th>Активність</th><th>Silver/Focus</th><th>Записів</th></tr></thead>
+            <tbody>
+              <template x-for="l in leaderboard" :key="l.activity_name">
+                <tr><td x-text="l.activity_name"></td><td class="text-gold" x-text="fmtSilver(l.avg_silver_per_focus)"></td><td x-text="l.samples"></td></tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function focusPage() {
+  return {
+    f: { activityName: '', focusCost: 0, silverOutput: 0 },
+    result: null, leaderboard: [],
+    async load() { this.leaderboard = await Api.get('/focus/leaderboard'); },
+    async calculate() { this.result = await Api.post('/focus/calculate', this.f); },
+    async save() { await this.calculate(); await Api.post('/focus/save', this.f); await this.load(); },
+  };
+}
+</script>
+</body>
+</html>

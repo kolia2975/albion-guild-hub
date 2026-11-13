@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Дашборд — Albion Guild Hub</title>
+<link rel="stylesheet" href="/assets/css/theme.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.14.1/cdn.min.js" defer></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/app.js"></script>
+</head>
+<body x-data="{...appShell(), ...dashboardPage()}" x-init="init(); load()">
+
+<div class="app-shell">
+  <!-- ===== САЙДБАР ===== -->
+  <aside class="sidebar" :class="{open: sidebarOpen}">
+    <div class="brand">⚔️ Albion Guild Hub</div>
+    <nav>
+      <a href="/dashboard.html" class="active">🏠 Дашборд</a>
+      <div class="section-label">Економіка</div>
+      <a href="/islands.html">🏝️ Острови та робітники</a>
+      <a href="/refining.html">⚙️ Переробка та Крафт</a>
+      <a href="/arbitrage.html">🚚 Арбітраж та Торгівля</a>
+      <a href="/focus.html">⚡ Ефективність Фокусу</a>
+      <div class="section-label">Гільдія</div>
+      <a href="/guild-islands.html">🏰 Гільдійський острів</a>
+      <a href="/sets.html">🛡️ Сети та КТА</a>
+      <a href="/treasury.html">💰 Скарбниця</a>
+      <template x-if="user && ['moderator','admin'].includes(user.role)">
+        <a href="/admin.html">🔧 Адмінпанель</a>
+      </template>
+          <div class="section-label">Акаунт</div>
+      <a href="/profile.html">👤 Мій профіль</a>
+    </nav>
+  </aside>
+
+  <div class="main-area">
+    <!-- ===== ТОПБАР ===== -->
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="btn-ghost" style="display:none;" @click="sidebarOpen = !sidebarOpen">☰</button>
+        <h1>Дашборд гільдії</h1>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="theme-toggle" @click="toggleTheme()">
+          <span x-text="theme === 'dark' ? '🌙' : '☀️'"></span>
+          <span x-text="theme === 'dark' ? 'Темна' : 'Світла'"></span>
+        </div>
+        <div class="notif-bell" @click="notifPanelOpen = !notifPanelOpen">
+          🔔
+          <span class="notif-dot" x-show="unreadCount > 0"></span>
+        </div>
+        <div class="text-muted" style="font-size:13px;">
+          <span x-text="user?.displayName"></span>
+          <span class="badge badge-gray" x-text="roleLabel(user?.role)"></span>
+        </div>
+        <button class="btn-secondary btn-sm" @click="logout()">Вийти</button>
+      </div>
+    </div>
+
+    <!-- ===== ПАНЕЛЬ НОТИФІКАЦІЙ ===== -->
+    <div class="card notif-panel" x-show="notifPanelOpen" @click.outside="notifPanelOpen = false" x-cloak>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <strong>Нотифікації</strong>
+        <button class="btn-ghost btn-sm" @click="markAllRead()">Прочитати всі</button>
+      </div>
+      <template x-if="notifications.length === 0">
+        <div class="text-muted" style="font-size:13px;">Нових нотифікацій немає ✅</div>
+      </template>
+      <template x-for="n in notifications" :key="n.id">
+        <div class="notif-item">
+          <span class="badge" :class="severityClass(n.severity)" x-text="n.type"></span>
+          <div style="font-weight:600;margin-top:4px;" x-text="n.title"></div>
+          <div class="text-muted" style="font-size:12px;" x-text="n.message"></div>
+          <button class="btn-ghost btn-sm" style="margin-top:6px;" @click="markRead(n.id)">Прочитано</button>
+        </div>
+      </template>
+    </div>
+
+    <!-- ===== КОНТЕНТ ===== -->
+    <div class="content">
+
+      <div class="grid grid-4">
+        <div class="card stat-card">
+          <div class="stat-label">Баланс скарбниці</div>
+          <div class="stat-value text-gold" x-text="fmtSilver(treasury.balance) + ' срібла'">—</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Голодних робітників</div>
+          <div class="stat-value" :class="hungryCount > 0 ? 'text-red' : 'text-green'" x-text="hungryCount">—</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Гільдійський острів</div>
+          <div class="stat-value" style="font-size:16px;" x-text="guildIsland ? (guildIsland.name + ' · T' + guildIsland.tier) : 'не зареєстровано'">—</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-label">Непрочитані нотифікації</div>
+          <div class="stat-value text-blue" x-text="unreadCount">0</div>
+        </div>
+      </div>
+
+      <div class="grid grid-2" style="margin-top:16px;">
+        <div class="card">
+          <h3 style="margin-top:0;">⚔️ Найближчі таймери фракційки</h3>
+          <template x-if="factionTimers.length === 0">
+            <div class="text-muted">Немає активних таймерів.</div>
+          </template>
+          <table>
+            <template x-for="t in factionTimers" :key="t.zone_name + t.timer_ends_at">
+              <tr>
+                <td x-text="t.zone_name"></td>
+                <td><span class="badge badge-gold" x-text="t.flag_status"></span></td>
+                <td class="text-muted" x-text="fmtTime(t.timer_ends_at)"></td>
+              </tr>
+            </template>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">🛒 Список закупів для островів</h3>
+          <template x-if="shoppingList.length === 0">
+            <div class="text-muted">Дефіциту їжі/журналів немає ✅</div>
+          </template>
+          <table>
+            <template x-for="s in shoppingList" :key="s.itemUniqueName">
+              <tr>
+                <td x-text="s.itemUniqueName"></td>
+                <td class="text-gold" x-text="s.quantity"></td>
+              </tr>
+            </template>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+function dashboardPage() {
+  return {
+    treasury: { balance: 0 },
+    hungryCount: 0,
+    guildIsland: null,
+    factionTimers: [],
+    shoppingList: [],
+
+    async load() {
+      try {
+        const [treasurySummary, buildings, islands, timers, shopping] = await Promise.all([
+          Api.get('/treasury/summary').catch(() => ({ balance: 0 })),
+          Api.get('/laborers/shopping-list').catch(() => []),
+          Api.get('/guild-islands').catch(() => []),
+          Api.get('/notifications/faction-timers').catch(() => []),
+          Api.get('/laborers/shopping-list').catch(() => []),
+        ]);
+        this.treasury = treasurySummary;
+        this.guildIsland = islands[0] || null;
+        this.factionTimers = timers.slice(0, 6);
+        this.shoppingList = shopping.slice(0, 8);
+        void buildings;
+
+        // Порахуємо голодних робітників по всіх островах користувача.
+        const myIslands = await Api.get('/laborers/islands');
+        let hungry = 0;
+        for (const isl of myIslands) {
+          const list = await Api.get(`/laborers/islands/${isl.id}/buildings`);
+          hungry += list.filter((b) => b.happiness_live <= 0).length;
+        }
+        this.hungryCount = hungry;
+      } catch (e) {
+        console.error(e);
+      }
+    },
+  };
+}
+</script>
+</body>
+</html>

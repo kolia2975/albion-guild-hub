@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Скарбниця — Albion Guild Hub</title>
+<link rel="stylesheet" href="/assets/css/theme.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.14.1/cdn.min.js" defer></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/app.js"></script>
+</head>
+<body x-data="{...appShell(), ...treasuryPage()}" x-init="init(); load()">
+<div class="app-shell">
+  <aside class="sidebar" :class="{open: sidebarOpen}">
+    <div class="brand">⚔️ Albion Guild Hub</div>
+    <nav>
+      <a href="/dashboard.html">🏠 Дашборд</a>
+      <div class="section-label">Економіка</div>
+      <a href="/islands.html">🏝️ Острови та робітники</a>
+      <a href="/refining.html">⚙️ Переробка та Крафт</a>
+      <a href="/arbitrage.html">🚚 Арбітраж та Торгівля</a>
+      <a href="/focus.html">⚡ Ефективність Фокусу</a>
+      <div class="section-label">Гільдія</div>
+      <a href="/guild-islands.html">🏰 Гільдійський острів</a>
+      <a href="/sets.html">🛡️ Сети та КТА</a>
+      <a href="/treasury.html" class="active">💰 Скарбниця</a>
+      <template x-if="user && ['moderator','admin'].includes(user.role)"><a href="/admin.html">🔧 Адмінпанель</a></template>
+          <div class="section-label">Акаунт</div>
+      <a href="/profile.html">👤 Мій профіль</a>
+    </nav>
+  </aside>
+  <div class="main-area">
+    <div class="topbar">
+      <h1>💰 Скарбниця гільдії</h1>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="theme-toggle" @click="toggleTheme()"><span x-text="theme==='dark'?'🌙':'☀️'"></span></div>
+        <div class="notif-bell" @click="notifPanelOpen = !notifPanelOpen">🔔<span class="notif-dot" x-show="unreadCount>0"></span></div>
+        <button class="btn-secondary btn-sm" @click="logout()">Вийти</button>
+      </div>
+    </div>
+    <div class="card notif-panel" x-show="notifPanelOpen" @click.outside="notifPanelOpen=false" x-cloak>
+      <template x-for="n in notifications" :key="n.id"><div class="notif-item"><div style="font-weight:600;" x-text="n.title"></div><button class="btn-ghost btn-sm" @click="markRead(n.id)">Прочитано</button></div></template>
+    </div>
+
+    <div class="content">
+      <div class="grid grid-3">
+        <div class="card stat-card"><div class="stat-label">Дохід</div><div class="stat-value text-green" x-text="fmtSilver(summary.totalIncome)"></div></div>
+        <div class="card stat-card"><div class="stat-label">Витрати</div><div class="stat-value text-red" x-text="fmtSilver(summary.totalExpense)"></div></div>
+        <div class="card stat-card"><div class="stat-label">Баланс</div><div class="stat-value text-gold" x-text="fmtSilver(summary.balance)"></div></div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Новий запис</h3>
+        <div class="grid" style="grid-template-columns: repeat(5, 1fr);">
+          <div class="field"><label>Тип</label>
+            <select x-model="f.entryType"><option value="income">Дохід</option><option value="expense">Витрата</option></select>
+          </div>
+          <div class="field"><label>Категорія</label><input x-model="f.category" placeholder="regear / donation / island_upkeep" /></div>
+          <div class="field"><label>Сума (срібло)</label><input type="number" x-model.number="f.amountSilver" /></div>
+          <div class="field"><label>Опис</label><input x-model="f.description" /></div>
+          <div class="field" style="display:flex;align-items:flex-end;"><button @click="addEntry()" style="width:100%;">Додати</button></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Журнал операцій</h3>
+        <table>
+          <thead><tr><th>Дата</th><th>Тип</th><th>Категорія</th><th>Сума</th><th>Опис</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="e in ledger" :key="e.id">
+              <tr>
+                <td class="text-muted" x-text="fmtTime(e.created_at)"></td>
+                <td><span class="badge" :class="e.entry_type==='income'?'badge-green':'badge-red'" x-text="e.entry_type"></span></td>
+                <td x-text="e.category"></td>
+                <td :class="e.entry_type==='income'?'text-green':'text-red'" x-text="fmtSilver(e.amount_silver)"></td>
+                <td class="text-muted" x-text="e.description"></td>
+                <td><button class="btn-ghost btn-sm" @click="removeEntry(e.id)">✕</button></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Розбивка за категоріями</h3>
+        <table>
+          <thead><tr><th>Категорія</th><th>Тип</th><th>Сума</th></tr></thead>
+          <tbody>
+            <template x-for="c in summary.byCategory || []" :key="c.category + c.entry_type">
+              <tr><td x-text="c.category"></td><td x-text="c.entry_type"></td><td x-text="fmtSilver(c.total)"></td></tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function treasuryPage() {
+  return {
+    summary: { totalIncome: 0, totalExpense: 0, balance: 0, byCategory: [] },
+    ledger: [],
+    f: { entryType: 'income', category: '', amountSilver: 0, description: '' },
+
+    async load() {
+      try {
+        this.summary = await Api.get('/treasury/summary');
+        this.ledger = await Api.get('/treasury/ledger');
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    async addEntry() {
+      await Api.post('/treasury/ledger', this.f);
+      this.f = { entryType: 'income', category: '', amountSilver: 0, description: '' };
+      await this.load();
+    },
+    async removeEntry(id) {
+      await Api.delete(`/treasury/ledger/${id}`);
+      await this.load();
+    },
+  };
+}
+</script>
+</body>
+</html>

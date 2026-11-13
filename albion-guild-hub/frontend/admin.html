@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Адмінпанель — Albion Guild Hub</title>
+<link rel="stylesheet" href="/assets/css/theme.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.14.1/cdn.min.js" defer></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/app.js"></script>
+</head>
+<body x-data="{...appShell(), ...adminPage()}" x-init="init(); load()">
+<div class="app-shell">
+  <aside class="sidebar" :class="{open: sidebarOpen}">
+    <div class="brand">⚔️ Albion Guild Hub</div>
+    <nav>
+      <a href="/dashboard.html">🏠 Дашборд</a>
+      <div class="section-label">Економіка</div>
+      <a href="/islands.html">🏝️ Острови та робітники</a>
+      <a href="/refining.html">⚙️ Переробка та Крафт</a>
+      <a href="/arbitrage.html">🚚 Арбітраж та Торгівля</a>
+      <a href="/focus.html">⚡ Ефективність Фокусу</a>
+      <div class="section-label">Гільдія</div>
+      <a href="/guild-islands.html">🏰 Гільдійський острів</a>
+      <a href="/sets.html">🛡️ Сети та КТА</a>
+      <a href="/treasury.html">💰 Скарбниця</a>
+      <a href="/admin.html" class="active">🔧 Адмінпанель</a>
+      <div class="section-label">Акаунт</div>
+      <a href="/profile.html">👤 Мій профіль</a>
+    </nav>
+  </aside>
+  <div class="main-area">
+    <div class="topbar">
+      <h1>🔧 Адмінпанель</h1>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="theme-toggle" @click="toggleTheme()"><span x-text="theme==='dark'?'🌙':'☀️'"></span></div>
+        <button class="btn-secondary btn-sm" @click="logout()">Вийти</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Користувачі -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 style="margin:0;">Учасники гільдії</h3>
+          <button @click="showAddUser = true">+ Запросити учасника</button>
+        </div>
+        <table style="margin-top:12px;">
+          <thead><tr><th>Логін</th><th>Ім'я</th><th>Роль</th><th>Активний</th><th>Останній вхід</th></tr></thead>
+          <tbody>
+            <template x-for="u in users" :key="u.id">
+              <tr>
+                <td x-text="u.username"></td>
+                <td x-text="u.display_name"></td>
+                <td>
+                  <select :value="u.role" @change="changeRole(u, $event.target.value)">
+                    <option value="member">Гільд-юзер</option>
+                    <option value="economist">Економіст</option>
+                    <option value="accountant">Обліковець</option>
+                    <option value="roster">Кістяк файтів</option>
+                    <option value="moderator">Модератор</option>
+                    <option value="admin">Адмін</option>
+                  </select>
+                </td>
+                <td>
+                  <input type="checkbox" :checked="u.is_active" @change="toggleActive(u, $event.target.checked)" />
+                </td>
+                <td class="text-muted" x-text="fmtTime(u.last_login_at)"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Таймери фракційки -->
+      <div class="card">
+        <h3 style="margin-top:0;">⚔️ Таймери фракційної війни</h3>
+        <div class="grid" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="field"><label>Зона</label><input x-model="ft.zoneName" /></div>
+          <div class="field"><label>Тір</label><input type="number" x-model.number="ft.tier" /></div>
+          <div class="field"><label>Статус прапора</label>
+            <select x-model="ft.flagStatus"><option value="neutral">neutral</option><option value="contested">contested</option><option value="captured">captured</option></select>
+          </div>
+          <div class="field"><label>Час завершення</label><input type="datetime-local" x-model="ft.timerEndsAt" /></div>
+        </div>
+        <button @click="addFactionTimer()">Додати таймер</button>
+
+        <table style="margin-top:12px;">
+          <thead><tr><th>Зона</th><th>Статус</th><th>Завершення</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="t in factionTimers" :key="t.id">
+              <tr>
+                <td x-text="t.zone_name"></td>
+                <td><span class="badge badge-gold" x-text="t.flag_status"></span></td>
+                <td class="text-muted" x-text="fmtTime(t.timer_ends_at)"></td>
+                <td><button class="btn-ghost btn-sm" @click="removeFactionTimer(t.id)">✕</button></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Таймери ресурсних зон -->
+      <div class="card">
+        <h3 style="margin-top:0;">⛏️ Таймери відновлення ресурсних зон</h3>
+        <div class="grid" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="field"><label>Зона</label><input x-model="rt.zoneName" /></div>
+          <div class="field"><label>Тип ресурсу</label><input x-model="rt.resourceType" placeholder="ore/wood/hide/fiber/rock" /></div>
+          <div class="field"><label>Тір</label><input type="number" x-model.number="rt.tier" /></div>
+          <div class="field"><label>Час відновлення</label><input type="datetime-local" x-model="rt.respawnsAt" /></div>
+        </div>
+        <button @click="addResourceTimer()">Додати таймер</button>
+
+        <table style="margin-top:12px;">
+          <thead><tr><th>Зона</th><th>Ресурс</th><th>Відновлення</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="t in resourceTimers" :key="t.id">
+              <tr>
+                <td x-text="t.zone_name"></td>
+                <td x-text="t.resource_type + (t.tier ? (' T' + t.tier) : '')"></td>
+                <td class="text-muted" x-text="fmtTime(t.respawns_at)"></td>
+                <td><button class="btn-ghost btn-sm" @click="removeResourceTimer(t.id)">✕</button></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Оголошення -->
+      <div class="card">
+        <h3 style="margin-top:0;">📢 Ручне оголошення (сайт + Discord)</h3>
+        <div class="grid grid-2">
+          <div class="field"><label>Заголовок</label><input x-model="ann.title" /></div>
+          <div class="field"><label>Важливість</label>
+            <select x-model="ann.severity"><option value="info">info</option><option value="warning">warning</option><option value="critical">critical</option></select>
+          </div>
+        </div>
+        <div class="field"><label>Повідомлення</label><textarea x-model="ann.message" rows="3"></textarea></div>
+        <button @click="sendAnnouncement()">Надіслати</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" x-show="showAddUser" x-cloak @click.self="showAddUser=false">
+  <div class="card modal-box">
+    <h3 style="margin-top:0;">Новий учасник</h3>
+    <div class="field"><label>Логін</label><input x-model="newUser.username" /></div>
+    <div class="field"><label>Пароль (тимчасовий)</label><input x-model="newUser.password" /></div>
+    <div class="field"><label>Ім'я</label><input x-model="newUser.displayName" /></div>
+    <div class="field"><label>Роль</label>
+      <select x-model="newUser.role">
+        <option value="member">Гільд-юзер</option><option value="economist">Економіст</option>
+        <option value="accountant">Обліковець</option><option value="roster">Кістяк файтів</option>
+        <option value="moderator">Модератор</option><option value="admin">Адмін</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn-ghost" @click="showAddUser=false">Скасувати</button>
+      <button @click="addUser()">Створити</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function adminPage() {
+  return {
+    users: [], factionTimers: [], resourceTimers: [],
+    showAddUser: false,
+    newUser: { username: '', password: '', displayName: '', role: 'member' },
+    ft: { zoneName: '', tier: 6, flagStatus: 'neutral', timerEndsAt: '' },
+    rt: { zoneName: '', resourceType: '', tier: 6, respawnsAt: '' },
+    ann: { title: '', message: '', severity: 'info' },
+
+    async load() {
+      this.users = await Api.get('/users');
+      this.factionTimers = await Api.get('/notifications/faction-timers');
+      this.resourceTimers = await Api.get('/notifications/resource-timers');
+    },
+    async addUser() {
+      try {
+        await Api.post('/users', this.newUser);
+        this.showAddUser = false;
+        this.newUser = { username: '', password: '', displayName: '', role: 'member' };
+        await this.load();
+      } catch (e) { alert(e.message); }
+    },
+    async changeRole(u, role) {
+      try { await Api.patch(`/users/${u.id}/role`, { role }); await this.load(); }
+      catch (e) { alert(e.message); await this.load(); }
+    },
+    async toggleActive(u, isActive) {
+      await Api.patch(`/users/${u.id}/active`, { isActive });
+      await this.load();
+    },
+    async addFactionTimer() {
+      if (!this.ft.zoneName || !this.ft.timerEndsAt) return;
+      await Api.post('/notifications/faction-timers', this.ft);
+      this.ft = { zoneName: '', tier: 6, flagStatus: 'neutral', timerEndsAt: '' };
+      await this.load();
+    },
+    async removeFactionTimer(id) { await Api.delete(`/notifications/faction-timers/${id}`); await this.load(); },
+    async addResourceTimer() {
+      if (!this.rt.zoneName || !this.rt.respawnsAt) return;
+      await Api.post('/notifications/resource-timers', this.rt);
+      this.rt = { zoneName: '', resourceType: '', tier: 6, respawnsAt: '' };
+      await this.load();
+    },
+    async removeResourceTimer(id) { await Api.delete(`/notifications/resource-timers/${id}`); await this.load(); },
+    async sendAnnouncement() {
+      if (!this.ann.title || !this.ann.message) return;
+      await Api.post('/notifications', { type: 'system', ...this.ann });
+      this.ann = { title: '', message: '', severity: 'info' };
+      alert('Оголошення надіслано.');
+    },
+  };
+}
+</script>
+</body>
+</html>

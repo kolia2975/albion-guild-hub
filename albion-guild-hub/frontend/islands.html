@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Острови та робітники — Albion Guild Hub</title>
+<link rel="stylesheet" href="/assets/css/theme.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.14.1/cdn.min.js" defer></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/app.js"></script>
+</head>
+<body x-data="{...appShell(), ...islandsPage()}" x-init="init(); load()">
+
+<div class="app-shell">
+  <aside class="sidebar" :class="{open: sidebarOpen}">
+    <div class="brand">⚔️ Albion Guild Hub</div>
+    <nav>
+      <a href="/dashboard.html">🏠 Дашборд</a>
+      <div class="section-label">Економіка</div>
+      <a href="/islands.html" class="active">🏝️ Острови та робітники</a>
+      <a href="/refining.html">⚙️ Переробка та Крафт</a>
+      <a href="/arbitrage.html">🚚 Арбітраж та Торгівля</a>
+      <a href="/focus.html">⚡ Ефективність Фокусу</a>
+      <div class="section-label">Гільдія</div>
+      <a href="/guild-islands.html">🏰 Гільдійський острів</a>
+      <a href="/sets.html">🛡️ Сети та КТА</a>
+      <a href="/treasury.html">💰 Скарбниця</a>
+      <template x-if="user && ['moderator','admin'].includes(user.role)">
+        <a href="/admin.html">🔧 Адмінпанель</a>
+      </template>
+          <div class="section-label">Акаунт</div>
+      <a href="/profile.html">👤 Мій профіль</a>
+    </nav>
+  </aside>
+
+  <div class="main-area">
+    <div class="topbar">
+      <h1>🏝️ Острови та робітники</h1>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="theme-toggle" @click="toggleTheme()">
+          <span x-text="theme === 'dark' ? '🌙' : '☀️'"></span>
+        </div>
+        <div class="notif-bell" @click="notifPanelOpen = !notifPanelOpen">
+          🔔<span class="notif-dot" x-show="unreadCount > 0"></span>
+        </div>
+        <button class="btn-secondary btn-sm" @click="logout()">Вийти</button>
+      </div>
+    </div>
+
+    <div class="card notif-panel" x-show="notifPanelOpen" @click.outside="notifPanelOpen = false" x-cloak>
+      <template x-for="n in notifications" :key="n.id">
+        <div class="notif-item">
+          <div style="font-weight:600;" x-text="n.title"></div>
+          <div class="text-muted" style="font-size:12px;" x-text="n.message"></div>
+          <button class="btn-ghost btn-sm" @click="markRead(n.id)">Прочитано</button>
+        </div>
+      </template>
+    </div>
+
+    <div class="content">
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 style="margin:0;">Мої острови</h3>
+          <button @click="showAddIsland = true">+ Додати острів</button>
+        </div>
+
+        <div class="grid grid-3" style="margin-top:14px;">
+          <template x-for="isl in islands" :key="isl.id">
+            <div class="card" style="cursor:pointer;" :style="selectedIsland?.id === isl.id ? 'border-color: var(--accent-gold)' : ''" @click="selectIsland(isl)">
+              <div style="font-weight:700;" x-text="isl.name"></div>
+              <div class="text-muted" style="font-size:12px;" x-text="isl.city + ' · Тір ' + isl.tier"></div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <template x-if="selectedIsland">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="margin:0;" x-text="'Робітники: ' + selectedIsland.name"></h3>
+            <button @click="showAddBuilding = true">+ Додати робітника</button>
+          </div>
+
+          <div class="grid grid-2" style="margin-top:14px;">
+            <template x-for="b in buildings" :key="b.id">
+              <div class="card">
+                <div style="display:flex;justify-content:space-between;">
+                  <strong x-text="b.building_type + ' (T' + b.building_tier + ')'"></strong>
+                  <span class="badge" :class="b.happiness_live > 300 ? 'badge-green' : (b.happiness_live > 0 ? 'badge-gold' : 'badge-red')"
+                        x-text="Math.round(b.happiness_live / 10) + '%'"></span>
+                </div>
+                <div class="text-muted" style="font-size:12px;margin:4px 0;" x-text="'Виробляє: ' + b.target_item"></div>
+
+                <div class="progress-track">
+                  <div class="progress-fill" :style="'width:' + (b.happiness_live / 10) + '%; background:' + (b.happiness_live > 300 ? 'var(--accent-green)' : (b.happiness_live > 0 ? 'var(--accent-gold)' : 'var(--accent-red)'))"></div>
+                </div>
+
+                <div class="text-muted" style="font-size:11px;margin-top:6px;">
+                  Дедлайн годування: <span x-text="fmtTime(b.feed_deadline)"></span>
+                </div>
+
+                <div style="font-size:12px;margin-top:8px;">
+                  🍖 <span x-text="b.needs.meal_have + '/' + b.needs.meal_required"></span>
+                  <span x-show="b.needs.meal_deficit > 0" class="text-red" x-text="' (не вистачає ' + b.needs.meal_deficit + ')'"></span>
+                  <br/>
+                  📓 <span x-text="b.needs.journal_have + '/' + b.needs.journal_required"></span>
+                  <span x-show="b.needs.journal_deficit > 0" class="text-red" x-text="' (не вистачає ' + b.needs.journal_deficit + ')'"></span>
+                </div>
+
+                <button class="btn-sm" style="margin-top:10px;" @click="feed(b.id)">🍽️ Погодувати (скинути таймер)</button>
+              </div>
+            </template>
+          </div>
+
+          <h4 style="margin-top:20px;">📦 Склад острова (їжа / журнали)</h4>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <input placeholder="Напр. T5_MEAL_PIE" x-model="invItemName" style="max-width:220px;" />
+            <input type="number" placeholder="К-сть" x-model.number="invQty" style="max-width:100px;" />
+            <button class="btn-sm" @click="updateInventory()">Оновити склад</button>
+          </div>
+        </div>
+      </template>
+
+      <div class="card">
+        <h3 style="margin-top:0;">🛒 Загальний список закупів</h3>
+        <table>
+          <thead><tr><th>Предмет</th><th>Потрібно</th></tr></thead>
+          <tbody>
+            <template x-for="s in shoppingList" :key="s.itemUniqueName">
+              <tr><td x-text="s.itemUniqueName"></td><td class="text-gold" x-text="s.quantity"></td></tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Модалка: додати острів -->
+<div class="modal-overlay" x-show="showAddIsland" x-cloak @click.self="showAddIsland = false">
+  <div class="card modal-box">
+    <h3 style="margin-top:0;">Новий острів</h3>
+    <div class="field"><label>Назва</label><input x-model="newIsland.name" /></div>
+    <div class="field"><label>Місто</label><input x-model="newIsland.city" placeholder="Fort Sterling" /></div>
+    <div class="field"><label>Тір острова (1-6)</label><input type="number" min="1" max="6" x-model.number="newIsland.tier" /></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn-ghost" @click="showAddIsland = false">Скасувати</button>
+      <button @click="addIsland()">Створити</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка: додати робітника -->
+<div class="modal-overlay" x-show="showAddBuilding" x-cloak @click.self="showAddBuilding = false">
+  <div class="card modal-box">
+    <h3 style="margin-top:0;">Новий робітник</h3>
+    <div class="field"><label>Тип будівлі</label><input x-model="newBuilding.buildingType" placeholder="Lumberjack Hut" /></div>
+    <div class="field"><label>Тір будівлі (4-8)</label><input type="number" min="4" max="8" x-model.number="newBuilding.buildingTier" /></div>
+    <div class="field"><label>Що виробляє (target item)</label><input x-model="newBuilding.targetItem" placeholder="T5_PLANKS" /></div>
+    <div class="field"><label>Цикл годування (год.)</label><input type="number" x-model.number="newBuilding.feedCycleHours" value="22" /></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn-ghost" @click="showAddBuilding = false">Скасувати</button>
+      <button @click="addBuilding()">Додати</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function islandsPage() {
+  return {
+    islands: [], selectedIsland: null, buildings: [], shoppingList: [],
+    showAddIsland: false, showAddBuilding: false,
+    newIsland: { name: '', city: '', tier: 1 },
+    newBuilding: { buildingType: '', buildingTier: 4, targetItem: '', feedCycleHours: 22 },
+    invItemName: '', invQty: 0,
+
+    async load() {
+      this.islands = await Api.get('/laborers/islands');
+      this.shoppingList = await Api.get('/laborers/shopping-list');
+      if (this.islands.length > 0) this.selectIsland(this.islands[0]);
+    },
+    async selectIsland(isl) {
+      this.selectedIsland = isl;
+      this.buildings = await Api.get(`/laborers/islands/${isl.id}/buildings`);
+    },
+    async addIsland() {
+      await Api.post('/laborers/islands', this.newIsland);
+      this.showAddIsland = false;
+      this.newIsland = { name: '', city: '', tier: 1 };
+      await this.load();
+    },
+    async addBuilding() {
+      await Api.post(`/laborers/islands/${this.selectedIsland.id}/buildings`, this.newBuilding);
+      this.showAddBuilding = false;
+      this.newBuilding = { buildingType: '', buildingTier: 4, targetItem: '', feedCycleHours: 22 };
+      await this.selectIsland(this.selectedIsland);
+    },
+    async feed(buildingId) {
+      await Api.post(`/laborers/buildings/${buildingId}/feed`);
+      await this.selectIsland(this.selectedIsland);
+    },
+    async updateInventory() {
+      if (!this.invItemName) return;
+      await Api.put(`/laborers/islands/${this.selectedIsland.id}/inventory`, {
+        items: [{ itemUniqueName: this.invItemName, quantity: this.invQty }],
+      });
+      this.invItemName = ''; this.invQty = 0;
+      await this.selectIsland(this.selectedIsland);
+      this.shoppingList = await Api.get('/laborers/shopping-list');
+    },
+  };
+}
+</script>
+</body>
+</html>

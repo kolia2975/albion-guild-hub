@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Переробка та Крафт — Albion Guild Hub</title>
+<link rel="stylesheet" href="/assets/css/theme.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.14.1/cdn.min.js" defer></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/app.js"></script>
+</head>
+<body x-data="{...appShell(), ...refiningPage()}" x-init="init(); load()">
+<div class="app-shell">
+  <aside class="sidebar" :class="{open: sidebarOpen}">
+    <div class="brand">⚔️ Albion Guild Hub</div>
+    <nav>
+      <a href="/dashboard.html">🏠 Дашборд</a>
+      <div class="section-label">Економіка</div>
+      <a href="/islands.html">🏝️ Острови та робітники</a>
+      <a href="/refining.html" class="active">⚙️ Переробка та Крафт</a>
+      <a href="/arbitrage.html">🚚 Арбітраж та Торгівля</a>
+      <a href="/focus.html">⚡ Ефективність Фокусу</a>
+      <div class="section-label">Гільдія</div>
+      <a href="/guild-islands.html">🏰 Гільдійський острів</a>
+      <a href="/sets.html">🛡️ Сети та КТА</a>
+      <a href="/treasury.html">💰 Скарбниця</a>
+      <template x-if="user && ['moderator','admin'].includes(user.role)"><a href="/admin.html">🔧 Адмінпанель</a></template>
+          <div class="section-label">Акаунт</div>
+      <a href="/profile.html">👤 Мій профіль</a>
+    </nav>
+  </aside>
+  <div class="main-area">
+    <div class="topbar">
+      <h1>⚙️ Переробка та Крафт</h1>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="theme-toggle" @click="toggleTheme()"><span x-text="theme==='dark'?'🌙':'☀️'"></span></div>
+        <div class="notif-bell" @click="notifPanelOpen = !notifPanelOpen">🔔<span class="notif-dot" x-show="unreadCount>0"></span></div>
+        <button class="btn-secondary btn-sm" @click="logout()">Вийти</button>
+      </div>
+    </div>
+    <div class="card notif-panel" x-show="notifPanelOpen" @click.outside="notifPanelOpen=false" x-cloak>
+      <template x-for="n in notifications" :key="n.id"><div class="notif-item"><div style="font-weight:600;" x-text="n.title"></div><button class="btn-ghost btn-sm" @click="markRead(n.id)">Прочитано</button></div></template>
+    </div>
+
+    <div class="content">
+      <div class="grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="card">
+          <h3 style="margin-top:0;">Параметри рецепту</h3>
+
+          <div class="field"><label>Назва рецепту</label><input x-model="f.recipeName" placeholder="T5 Planks" /></div>
+          <div class="grid grid-2">
+            <div class="field"><label>Місто</label><input x-model="f.city" placeholder="Fort Sterling" /></div>
+            <div class="field"><label>Тір ресурсу</label><input type="number" x-model.number="f.resourceTier" /></div>
+          </div>
+          <div class="grid grid-2">
+            <div class="field"><label>Енчант</label><input type="number" x-model.number="f.enchant" /></div>
+            <div class="field"><label>% повернення ресурсів (RRF)</label><input type="number" step="0.1" x-model.number="f.returnRatePercent" /></div>
+          </div>
+
+          <hr style="border-color:var(--card-border);margin:14px 0;" />
+
+          <div class="grid grid-2">
+            <div class="field"><label>Сировини на 1 крафт</label><input type="number" x-model.number="f.rawMaterialQtyPerCraft" /></div>
+            <div class="field"><label>Ціна сировини (за од.)</label><input type="number" x-model.number="f.rawMaterialPrice" /></div>
+          </div>
+          <div class="grid grid-2">
+            <div class="field"><label>Міський бонус, %</label><input type="number" step="0.1" x-model.number="f.cityBonusPercent" /></div>
+            <div class="field"><label>Плата за верстат (Station Fee)</label><input type="number" x-model.number="f.stationFeeSilver" /></div>
+          </div>
+
+          <hr style="border-color:var(--card-border);margin:14px 0;" />
+
+          <div class="grid grid-2">
+            <div class="field"><label>Кількість готової продукції</label><input type="number" x-model.number="f.outputQuantity" /></div>
+            <div class="field"><label>Ціна продажу (за од.)</label><input type="number" x-model.number="f.outputPrice" /></div>
+          </div>
+          <div class="field"><label>Податок ринку, % (4 з преміум / 8 без)</label><input type="number" step="0.1" x-model.number="f.marketTaxPercent" /></div>
+
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button @click="calculate()">Порахувати</button>
+            <button class="btn-secondary" @click="save()">Зберегти в історію</button>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <h3 style="margin-top:0;">Результат</h3>
+            <template x-if="!result">
+              <div class="text-muted">Заповни поля зліва і натисни "Порахувати".</div>
+            </template>
+            <template x-if="result">
+              <div class="grid grid-2">
+                <div><div class="stat-label">Чисті витрати сировини</div><div class="stat-value" style="font-size:18px;" x-text="result.netRawMaterials"></div></div>
+                <div><div class="stat-label">Собівартість</div><div class="stat-value" style="font-size:18px;" x-text="fmtSilver(result.totalCostSilver)"></div></div>
+                <div><div class="stat-label">Виручка (без податку)</div><div class="stat-value" style="font-size:18px;" x-text="fmtSilver(result.grossRevenueSilver)"></div></div>
+                <div><div class="stat-label">Податок ринку</div><div class="stat-value text-red" style="font-size:18px;" x-text="fmtSilver(result.marketTaxSilver)"></div></div>
+                <div><div class="stat-label">Чистий прибуток</div><div class="stat-value" :class="result.netProfitSilver >= 0 ? 'text-green' : 'text-red'" x-text="fmtSilver(result.netProfitSilver)"></div></div>
+                <div><div class="stat-label">Рентабельність</div><div class="stat-value" :class="result.profitMarginPercent >= 0 ? 'text-green' : 'text-red'" x-text="result.profitMarginPercent + '%'"></div></div>
+              </div>
+            </template>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-top:0;">Історія розрахунків</h3>
+            <table>
+              <thead><tr><th>Рецепт</th><th>Місто</th><th>Прибуток</th><th>Рент.</th></tr></thead>
+              <tbody>
+                <template x-for="h in history" :key="h.id">
+                  <tr>
+                    <td x-text="h.recipe_name"></td>
+                    <td x-text="h.city"></td>
+                    <td :class="h.net_profit_silver >= 0 ? 'text-green' : 'text-red'" x-text="fmtSilver(h.net_profit_silver)"></td>
+                    <td x-text="h.profit_margin_percent + '%'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function refiningPage() {
+  return {
+    f: {
+      recipeName: '', city: '', resourceTier: 5, enchant: 0, returnRatePercent: 15.2,
+      rawMaterialQtyPerCraft: 1, rawMaterialPrice: 0, cityBonusPercent: 0, stationFeeSilver: 0,
+      outputQuantity: 1, outputPrice: 0, marketTaxPercent: 4,
+    },
+    result: null, history: [],
+    async load() { this.history = await Api.get('/refining/history'); },
+    async calculate() { this.result = await Api.post('/refining/calculate', this.f); },
+    async save() {
+      await this.calculate();
+      await Api.post('/refining/save', this.f);
+      await this.load();
+    },
+  };
+}
+</script>
+</body>
+</html>

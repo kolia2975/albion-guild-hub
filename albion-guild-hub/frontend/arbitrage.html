@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Арбітраж та Торгівля — Albion Guild Hub</title>
+<link rel="stylesheet" href="/assets/css/theme.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.14.1/cdn.min.js" defer></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/app.js"></script>
+</head>
+<body x-data="{...appShell(), ...arbitragePage()}" x-init="init(); load()">
+<div class="app-shell">
+  <aside class="sidebar" :class="{open: sidebarOpen}">
+    <div class="brand">⚔️ Albion Guild Hub</div>
+    <nav>
+      <a href="/dashboard.html">🏠 Дашборд</a>
+      <div class="section-label">Економіка</div>
+      <a href="/islands.html">🏝️ Острови та робітники</a>
+      <a href="/refining.html">⚙️ Переробка та Крафт</a>
+      <a href="/arbitrage.html" class="active">🚚 Арбітраж та Торгівля</a>
+      <a href="/focus.html">⚡ Ефективність Фокусу</a>
+      <div class="section-label">Гільдія</div>
+      <a href="/guild-islands.html">🏰 Гільдійський острів</a>
+      <a href="/sets.html">🛡️ Сети та КТА</a>
+      <a href="/treasury.html">💰 Скарбниця</a>
+      <template x-if="user && ['moderator','admin'].includes(user.role)"><a href="/admin.html">🔧 Адмінпанель</a></template>
+          <div class="section-label">Акаунт</div>
+      <a href="/profile.html">👤 Мій профіль</a>
+    </nav>
+  </aside>
+  <div class="main-area">
+    <div class="topbar">
+      <h1>🚚 Арбітраж та Торгівля</h1>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="theme-toggle" @click="toggleTheme()"><span x-text="theme==='dark'?'🌙':'☀️'"></span></div>
+        <div class="notif-bell" @click="notifPanelOpen = !notifPanelOpen">🔔<span class="notif-dot" x-show="unreadCount>0"></span></div>
+        <button class="btn-secondary btn-sm" @click="logout()">Вийти</button>
+      </div>
+    </div>
+    <div class="card notif-panel" x-show="notifPanelOpen" @click.outside="notifPanelOpen=false" x-cloak>
+      <template x-for="n in notifications" :key="n.id"><div class="notif-item"><div style="font-weight:600;" x-text="n.title"></div><button class="btn-ghost btn-sm" @click="markRead(n.id)">Прочитано</button></div></template>
+    </div>
+
+    <div class="content">
+      <div class="grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="card">
+          <h3 style="margin-top:0;">Розрахунок угоди</h3>
+          <div class="field"><label>Предмет</label><input x-model="f.itemUniqueName" placeholder="T6_BAG" /></div>
+          <div class="grid grid-2">
+            <div class="field"><label>Місто купівлі</label><input x-model="f.buyCity" /></div>
+            <div class="field"><label>Місто продажу</label><input x-model="f.sellCity" /></div>
+          </div>
+          <div class="grid grid-2">
+            <div class="field"><label>Ціна купівлі</label><input type="number" x-model.number="f.buyPrice" /></div>
+            <div class="field"><label>Ціна продажу</label><input type="number" x-model.number="f.sellPrice" /></div>
+          </div>
+          <div class="grid grid-2">
+            <div class="field"><label>Кількість</label><input type="number" x-model.number="f.quantity" /></div>
+            <div class="field"><label>Податок продажу, %</label><input type="number" step="0.1" x-model.number="f.sellTaxPercent" /></div>
+          </div>
+          <div class="field"><label>Комісія за лот, %</label><input type="number" step="0.1" x-model.number="f.setupFeePercent" /></div>
+
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button @click="calculate()">Порахувати</button>
+            <button class="btn-secondary" @click="save()">Зберегти в історію</button>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <h3 style="margin-top:0;">Результат</h3>
+            <template x-if="!result"><div class="text-muted">Заповни форму і натисни "Порахувати".</div></template>
+            <template x-if="result">
+              <div class="grid grid-2">
+                <div><div class="stat-label">Витрати на купівлю</div><div class="stat-value" style="font-size:18px;" x-text="fmtSilver(result.buyCost)"></div></div>
+                <div><div class="stat-label">Виручка (грос)</div><div class="stat-value" style="font-size:18px;" x-text="fmtSilver(result.sellGross)"></div></div>
+                <div><div class="stat-label">Податок + комісія</div><div class="stat-value text-red" style="font-size:18px;" x-text="fmtSilver(result.sellTax + result.setupFee)"></div></div>
+                <div><div class="stat-label">Чистий прибуток</div><div class="stat-value" :class="result.netProfit>=0?'text-green':'text-red'" x-text="fmtSilver(result.netProfit)"></div></div>
+                <div><div class="stat-label">ROI</div><div class="stat-value" :class="result.roiPercent>=0?'text-green':'text-red'" x-text="result.roiPercent + '%'"></div></div>
+              </div>
+            </template>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-top:0;">Історія угод</h3>
+            <table>
+              <thead><tr><th>Предмет</th><th>Маршрут</th><th>Прибуток</th><th>ROI</th></tr></thead>
+              <tbody>
+                <template x-for="h in history" :key="h.id">
+                  <tr>
+                    <td x-text="h.item_unique_name"></td>
+                    <td x-text="h.buy_city + ' → ' + h.sell_city"></td>
+                    <td :class="h.net_profit_silver>=0?'text-green':'text-red'" x-text="fmtSilver(h.net_profit_silver)"></td>
+                    <td x-text="h.roi_percent + '%'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function arbitragePage() {
+  return {
+    f: { itemUniqueName: '', buyCity: '', sellCity: '', buyPrice: 0, sellPrice: 0, quantity: 1, sellTaxPercent: 4, setupFeePercent: 2.5 },
+    result: null, history: [],
+    async load() { this.history = await Api.get('/arbitrage/history'); },
+    async calculate() { this.result = await Api.post('/arbitrage/calculate', this.f); },
+    async save() { await this.calculate(); await Api.post('/arbitrage/save', this.f); await this.load(); },
+  };
+}
+</script>
+</body>
+</html>

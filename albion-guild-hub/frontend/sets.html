@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Сети та КТА — Albion Guild Hub</title>
+<link rel="stylesheet" href="/assets/css/theme.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.14.1/cdn.min.js" defer></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/app.js"></script>
+</head>
+<body x-data="{...appShell(), ...setsPage()}" x-init="init(); load()">
+<div class="app-shell">
+  <aside class="sidebar" :class="{open: sidebarOpen}">
+    <div class="brand">⚔️ Albion Guild Hub</div>
+    <nav>
+      <a href="/dashboard.html">🏠 Дашборд</a>
+      <div class="section-label">Економіка</div>
+      <a href="/islands.html">🏝️ Острови та робітники</a>
+      <a href="/refining.html">⚙️ Переробка та Крафт</a>
+      <a href="/arbitrage.html">🚚 Арбітраж та Торгівля</a>
+      <a href="/focus.html">⚡ Ефективність Фокусу</a>
+      <div class="section-label">Гільдія</div>
+      <a href="/guild-islands.html">🏰 Гільдійський острів</a>
+      <a href="/sets.html" class="active">🛡️ Сети та КТА</a>
+      <a href="/treasury.html">💰 Скарбниця</a>
+      <template x-if="user && ['moderator','admin'].includes(user.role)"><a href="/admin.html">🔧 Адмінпанель</a></template>
+          <div class="section-label">Акаунт</div>
+      <a href="/profile.html">👤 Мій профіль</a>
+    </nav>
+  </aside>
+  <div class="main-area">
+    <div class="topbar">
+      <h1>🛡️ Сети та КТА</h1>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="theme-toggle" @click="toggleTheme()"><span x-text="theme==='dark'?'🌙':'☀️'"></span></div>
+        <div class="notif-bell" @click="notifPanelOpen = !notifPanelOpen">🔔<span class="notif-dot" x-show="unreadCount>0"></span></div>
+        <button class="btn-secondary btn-sm" @click="logout()">Вийти</button>
+      </div>
+    </div>
+    <div class="card notif-panel" x-show="notifPanelOpen" @click.outside="notifPanelOpen=false" x-cloak>
+      <template x-for="n in notifications" :key="n.id"><div class="notif-item"><div style="font-weight:600;" x-text="n.title"></div><button class="btn-ghost btn-sm" @click="markRead(n.id)">Прочитано</button></div></template>
+    </div>
+
+    <div class="content">
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 style="margin:0;">Сети (вручну зібрані адміном/roster)</h3>
+          <template x-if="canManage"><button @click="showAddSet = true">+ Новий сет</button></template>
+        </div>
+        <div class="grid grid-3" style="margin-top:14px;">
+          <template x-for="s in sets" :key="s.id">
+            <div class="card" style="cursor:pointer;" :style="selected?.id===s.id?'border-color:var(--accent-gold)':''" @click="selectSet(s)">
+              <div style="font-weight:700;" x-text="s.name"></div>
+              <span class="badge badge-blue" x-text="s.content_type"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <template x-if="selected">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="margin:0;" x-text="'Склад сету: ' + selected.name"></h3>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-secondary btn-sm" @click="checkMyReadiness()">✅ Перевірити мою готовність</button>
+              <template x-if="canManage"><button class="btn-sm" @click="showAddItem = true">+ Слот</button></template>
+            </div>
+          </div>
+
+          <table style="margin-top:12px;">
+            <thead><tr><th>Слот</th><th>Предмет</th><th>Тір</th><th>Енчант</th><th>К-сть</th><th></th></tr></thead>
+            <tbody>
+              <template x-for="it in items" :key="it.id">
+                <tr>
+                  <td x-text="it.slot"></td>
+                  <td x-text="it.item_unique_name"></td>
+                  <td x-text="it.tier"></td>
+                  <td x-text="it.enchant"></td>
+                  <td x-text="it.quantity"></td>
+                  <td><template x-if="canManage"><button class="btn-ghost btn-sm" @click="removeItem(it.id)">✕</button></template></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+
+          <template x-if="readiness">
+            <div class="card" style="margin-top:14px;">
+              <span class="badge" :class="readiness.status==='ready'?'badge-green':(readiness.status==='partial'?'badge-gold':'badge-red')" x-text="readiness.status"></span>
+              <template x-if="readiness.missing.length > 0">
+                <ul style="margin:8px 0 0 18px;font-size:13px;">
+                  <template x-for="m in readiness.missing" :key="m.itemUniqueName">
+                    <li x-text="m.slot + ': ' + m.itemUniqueName + ' (потрібно ' + m.required + ', є ' + m.have + ')'"></li>
+                  </template>
+                </ul>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <div class="card">
+        <h3 style="margin-top:0;">🎯 Авто-підбір сетів під мою прокачку майстерок</h3>
+        <div class="text-muted" style="font-size:12px;margin-bottom:10px;">
+          Відсоток відповідності рахується за рівнем твоїх майстерок у профілі для предметів, прив'язаних до ліній крафту.
+        </div>
+        <table>
+          <thead><tr><th>Сет</th><th>Тип контенту</th><th>Відповідність</th></tr></thead>
+          <tbody>
+            <template x-for="s in suggestions" :key="s.setId">
+              <tr>
+                <td x-text="s.name"></td>
+                <td x-text="s.contentType"></td>
+                <td>
+                  <div class="progress-track" style="width:120px;display:inline-block;vertical-align:middle;">
+                    <div class="progress-fill" :style="'width:' + s.matchPercent + '%; background: var(--accent-gold)'"></div>
+                  </div>
+                  <span style="margin-left:8px;" x-text="s.matchPercent + '%'"></span>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" x-show="showAddSet" x-cloak @click.self="showAddSet=false">
+  <div class="card modal-box">
+    <h3 style="margin-top:0;">Новий сет</h3>
+    <div class="field"><label>Назва</label><input x-model="newSet.name" /></div>
+    <div class="field"><label>Тип контенту</label><input x-model="newSet.contentType" placeholder="ZvZ / Small Scale / Static / Crystal Arena" /></div>
+    <div class="field"><label>Опис</label><textarea x-model="newSet.description" rows="3"></textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn-ghost" @click="showAddSet=false">Скасувати</button>
+      <button @click="addSet()">Створити</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" x-show="showAddItem" x-cloak @click.self="showAddItem=false">
+  <div class="card modal-box">
+    <h3 style="margin-top:0;">Новий слот екіпіровки</h3>
+    <div class="field"><label>Слот</label>
+      <select x-model="newItem.slot">
+        <option value="weapon">Зброя</option><option value="offhand">Оффхенд</option><option value="helmet">Шолом</option>
+        <option value="armor">Броня</option><option value="boots">Взуття</option><option value="cape">Плащ</option>
+        <option value="food">Їжа</option><option value="potion">Зілля</option><option value="mount">Транспорт</option>
+      </select>
+    </div>
+    <div class="field"><label>Item Unique Name</label><input x-model="newItem.itemUniqueName" placeholder="T8_HEAD_PLATE_SET1" /></div>
+    <div class="grid grid-2">
+      <div class="field"><label>Тір</label><input type="number" x-model.number="newItem.tier" /></div>
+      <div class="field"><label>Енчант</label><input type="number" x-model.number="newItem.enchant" /></div>
+    </div>
+    <div class="field"><label>Лінія майстерки (код, опційно)</label><input x-model="newItem.craftingLineCode" placeholder="PLATE_ARMOR" /></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn-ghost" @click="showAddItem=false">Скасувати</button>
+      <button @click="addItem()">Додати</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function setsPage() {
+  return {
+    sets: [], selected: null, items: [], suggestions: [], readiness: null,
+    showAddSet: false, showAddItem: false,
+    newSet: { name: '', contentType: '', description: '' },
+    newItem: { slot: 'weapon', itemUniqueName: '', tier: 8, enchant: 0, craftingLineCode: '' },
+
+    get canManage() {
+      return this.user && ['admin', 'roster'].includes(this.user.role);
+    },
+
+    async load() {
+      this.sets = await Api.get('/builds/sets');
+      if (this.user) this.suggestions = await Api.get(`/builds/suggestions/${this.user.id}`);
+      if (this.sets.length > 0) this.selectSet(this.sets[0]);
+    },
+    async selectSet(s) {
+      const full = await Api.get(`/builds/sets/${s.id}`);
+      this.selected = full;
+      this.items = full.items;
+      this.readiness = null;
+    },
+    async addSet() {
+      await Api.post('/builds/sets', this.newSet);
+      this.showAddSet = false;
+      this.newSet = { name: '', contentType: '', description: '' };
+      await this.load();
+    },
+    async addItem() {
+      await Api.post(`/builds/sets/${this.selected.id}/items`, this.newItem);
+      this.showAddItem = false;
+      this.newItem = { slot: 'weapon', itemUniqueName: '', tier: 8, enchant: 0, craftingLineCode: '' };
+      await this.selectSet(this.selected);
+    },
+    async removeItem(itemId) {
+      await Api.delete(`/builds/items/${itemId}`);
+      await this.selectSet(this.selected);
+    },
+    async checkMyReadiness() {
+      this.readiness = await Api.get(`/builds/sets/${this.selected.id}/readiness/${this.user.id}`);
+    },
+  };
+}
+</script>
+</body>
+</html>

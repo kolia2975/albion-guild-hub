@@ -1,0 +1,252 @@
+/* =====================================================================
+   Albion Guild Hub — базова тема (dark за замовчуванням, light перемикається
+   додаванням класу .theme-light на <html>).
+   ===================================================================== */
+
+:root {
+  --bg: #0b0e14;
+  --bg-elevated: #0f172a;
+  --card-bg: rgba(15, 23, 42, 0.55);
+  --card-border: rgba(148, 163, 184, 0.15);
+  --text-main: #e2e8f0;
+  --text-muted: #94a3b8;
+  --accent-gold: #f59e0b;
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+  --accent-blue: #38bdf8;
+  --sidebar-bg: rgba(11, 14, 20, 0.9);
+  --input-bg: rgba(30, 41, 59, 0.6);
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+html.theme-light {
+  --bg: #f1f5f9;
+  --bg-elevated: #ffffff;
+  --card-bg: rgba(255, 255, 255, 0.75);
+  --card-border: rgba(15, 23, 42, 0.08);
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --sidebar-bg: rgba(255, 255, 255, 0.9);
+  --input-bg: rgba(241, 245, 249, 0.9);
+  --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text-main);
+  font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+a { color: inherit; text-decoration: none; }
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ---------- Сайдбар (в стилі Google Classroom — вузький, іконки + підписи) ---------- */
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--card-border);
+  backdrop-filter: blur(10px);
+  padding: 20px 12px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 20px 8px;
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--accent-gold);
+}
+
+.sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 2px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sidebar nav a:hover { background: rgba(148, 163, 184, 0.08); color: var(--text-main); }
+.sidebar nav a.active {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--accent-gold);
+  font-weight: 600;
+}
+
+.sidebar nav .section-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  opacity: 0.6;
+  margin: 16px 10px 6px 10px;
+}
+
+/* ---------- Основний контент ---------- */
+.main-area { flex: 1; min-width: 0; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--card-border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 20;
+}
+
+.topbar h1 { font-size: 19px; margin: 0; font-weight: 700; }
+
+.content { padding: 24px 28px 60px 28px; max-width: 1400px; }
+
+/* ---------- Картки (glassmorphism) ---------- */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.card + .card { margin-top: 16px; }
+
+.grid { display: grid; gap: 16px; }
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.grid-4 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+.stat-card .stat-value { font-size: 26px; font-weight: 800; margin: 4px 0; }
+.stat-card .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+.text-gold { color: var(--accent-gold); }
+.text-green { color: var(--accent-green); }
+.text-red { color: var(--accent-red); }
+.text-blue { color: var(--accent-blue); }
+.text-muted { color: var(--text-muted); }
+
+/* ---------- Форми ---------- */
+input, select, textarea {
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  color: var(--text-main);
+  padding: 9px 12px;
+  font-size: 14px;
+  width: 100%;
+  font-family: inherit;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+}
+label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px; }
+.field { margin-bottom: 12px; }
+
+button, .btn {
+  cursor: pointer;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--accent-gold);
+  color: #1c1300;
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+button:hover, .btn:hover { filter: brightness(1.08); }
+button:active, .btn:active { transform: scale(0.98); }
+.btn-secondary { background: rgba(148, 163, 184, 0.15); color: var(--text-main); }
+.btn-danger { background: var(--accent-red); color: #fff; }
+.btn-ghost { background: transparent; border: 1px solid var(--card-border); color: var(--text-main); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+
+/* ---------- Таблиці ---------- */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--card-border); }
+th { color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.04em; }
+
+/* ---------- Бейджі статусів ---------- */
+.badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.badge-green { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+.badge-red { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+.badge-gold { background: rgba(245, 158, 11, 0.15); color: var(--accent-gold); }
+.badge-blue { background: rgba(56, 189, 248, 0.15); color: var(--accent-blue); }
+.badge-gray { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); }
+
+/* ---------- Прогрес-бар щастя робітників ---------- */
+.progress-track {
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+.progress-fill { height: 100%; border-radius: 999px; transition: width 0.3s ease; }
+
+/* ---------- Перемикач теми ---------- */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* ---------- Дзвіночок нотифікацій ---------- */
+.notif-bell { position: relative; cursor: pointer; padding: 8px; border-radius: 10px; }
+.notif-bell:hover { background: rgba(148, 163, 184, 0.1); }
+.notif-dot {
+  position: absolute; top: 4px; right: 4px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent-red);
+}
+.notif-panel {
+  position: absolute; right: 28px; top: 60px; width: 360px; max-height: 70vh;
+  overflow-y: auto; z-index: 50;
+}
+.notif-item { padding: 10px 0; border-bottom: 1px solid var(--card-border); }
+.notif-item:last-child { border-bottom: none; }
+
+/* ---------- Модалка ---------- */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal-box { width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto; }
+
+@media (max-width: 900px) {
+  .sidebar { position: fixed; z-index: 40; transform: translateX(-100%); transition: transform 0.2s ease; }
+  .sidebar.open { transform: translateX(0); }
+  .content { padding: 16px; }
+}

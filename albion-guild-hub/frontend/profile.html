@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Мій профіль — Albion Guild Hub</title>
+<link rel="stylesheet" href="/assets/css/theme.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.14.1/cdn.min.js" defer></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/app.js"></script>
+</head>
+<body x-data="{...appShell(), ...profilePage()}" x-init="init(); load()">
+<div class="app-shell">
+  <aside class="sidebar" :class="{open: sidebarOpen}">
+    <div class="brand">⚔️ Albion Guild Hub</div>
+    <nav>
+      <a href="/dashboard.html">🏠 Дашборд</a>
+      <div class="section-label">Економіка</div>
+      <a href="/islands.html">🏝️ Острови та робітники</a>
+      <a href="/refining.html">⚙️ Переробка та Крафт</a>
+      <a href="/arbitrage.html">🚚 Арбітраж та Торгівля</a>
+      <a href="/focus.html">⚡ Ефективність Фокусу</a>
+      <div class="section-label">Гільдія</div>
+      <a href="/guild-islands.html">🏰 Гільдійський острів</a>
+      <a href="/sets.html">🛡️ Сети та КТА</a>
+      <a href="/treasury.html">💰 Скарбниця</a>
+      <template x-if="user && ['moderator','admin'].includes(user.role)"><a href="/admin.html">🔧 Адмінпанель</a></template>
+      <div class="section-label">Акаунт</div>
+      <a href="/profile.html" class="active">👤 Мій профіль</a>
+    </nav>
+  </aside>
+  <div class="main-area">
+    <div class="topbar">
+      <h1>👤 Мій профіль</h1>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="theme-toggle" @click="toggleTheme()"><span x-text="theme==='dark'?'🌙':'☀️'"></span></div>
+        <button class="btn-secondary btn-sm" @click="logout()">Вийти</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="card">
+        <h3 style="margin-top:0;">Основна інформація</h3>
+        <div class="grid grid-2">
+          <div class="field"><label>Ігровий нік</label><input x-model="me.in_game_nick" /></div>
+          <div class="field"><label>Discord ID</label><input x-model="me.discord_id" placeholder="123456789012345678" /></div>
+        </div>
+        <button @click="saveProfile()">Зберегти</button>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Зміна пароля</h3>
+        <div class="grid grid-2">
+          <div class="field"><label>Старий пароль</label><input type="password" x-model="pwd.oldPassword" /></div>
+          <div class="field"><label>Новий пароль</label><input type="password" x-model="pwd.newPassword" /></div>
+        </div>
+        <button class="btn-secondary" @click="changePassword()">Змінити пароль</button>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">🎯 Мої майстерки крафту</h3>
+        <div class="text-muted" style="font-size:12px;margin-bottom:10px;">
+          Це впливає на авто-підбір гільдійських сетів (сторінка "Сети та КТА") — чим вищий рівень, тим більше
+          сетів з відповідними предметами тобі порекомендує система.
+        </div>
+        <div class="grid grid-3">
+          <template x-for="line in craftingLines" :key="line.code">
+            <div class="field">
+              <label x-text="line.label"></label>
+              <input type="number" min="0" max="100" :value="masteryMap[line.code] || 0"
+                     @input="masteryMap[line.code] = Number($event.target.value)" />
+            </div>
+          </template>
+        </div>
+        <button @click="saveSpecializations()">Зберегти майстерки</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function profilePage() {
+  return {
+    me: {}, pwd: { oldPassword: '', newPassword: '' },
+    craftingLines: [], masteryMap: {},
+
+    async load() {
+      this.me = await Api.get('/auth/me');
+      this.craftingLines = await Api.get('/users/meta/crafting-lines');
+      const specs = await Api.get(`/users/${this.me.id}/specializations`);
+      this.masteryMap = Object.fromEntries(specs.map((s) => [s.code, s.mastery_level]));
+    },
+    async saveProfile() {
+      await Api.patch('/auth/me', { inGameNick: this.me.in_game_nick, discordId: this.me.discord_id });
+      alert('Профіль збережено.');
+    },
+    async changePassword() {
+      try {
+        await Api.post('/auth/change-password', this.pwd);
+        this.pwd = { oldPassword: '', newPassword: '' };
+        alert('Пароль змінено.');
+      } catch (e) {
+        alert(e.message);
+      }
+    },
+    async saveSpecializations() {
+      const specializations = Object.entries(this.masteryMap).map(([code, masteryLevel]) => ({ code, masteryLevel }));
+      await Api.put(`/users/${this.me.id}/specializations`, { specializations });
+      alert('Майстерки збережено.');
+    },
+  };
+}
+</script>
+</body>
+</html>

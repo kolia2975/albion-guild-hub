@@ -1,0 +1,76 @@
+
+services:
+  # ---------------------------------------------------------------------
+  # PostgreSQL — база даних. Схема (db/init.sql) застосовується
+  # автоматично лише при ПЕРШОМУ старті (коли том db_data порожній).
+  # ---------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: albion_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------
+  # Adminer — легка веб-морда для перегляду бази в браузері (localhost:8081)
+  # Логін: система PostgreSQL, сервер "db", далі POSTGRES_USER/PASSWORD/DB
+  # ---------------------------------------------------------------------
+  adminer:
+    image: adminer:latest
+    container_name: albion_adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    depends_on:
+      - db
+
+  # ---------------------------------------------------------------------
+  # app — Node.js бекенд (API) + віддає статичний фронтенд.
+  # Каталог ./frontend примонтовано всередину як /app/public — тобто
+  # правки в HTML/CSS/JS на хості одразу видно після перезавантаження
+  # сторінки в браузері, без перезбірки контейнера.
+  # ---------------------------------------------------------------------
+  app:
+    build:
+      context: ./backend
+    container_name: albion_app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    volumes:
+      - ./frontend:/app/public:ro
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------
+  # bot — Discord-бот (слеш-команди + доставка нотифікацій у канал)
+  # ---------------------------------------------------------------------
+  bot:
+    build:
+      context: ./bot
+    container_name: albion_bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_INTERNAL_URL: http://app:4000
+    depends_on:
+      - app
+
+volumes:
+  db_data:

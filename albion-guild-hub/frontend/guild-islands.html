@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Гільдійський острів — Albion Guild Hub</title>
+<link rel="stylesheet" href="/assets/css/theme.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.14.1/cdn.min.js" defer></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/app.js"></script>
+</head>
+<body x-data="{...appShell(), ...guildIslandPage()}" x-init="init(); load()">
+<div class="app-shell">
+  <aside class="sidebar" :class="{open: sidebarOpen}">
+    <div class="brand">⚔️ Albion Guild Hub</div>
+    <nav>
+      <a href="/dashboard.html">🏠 Дашборд</a>
+      <div class="section-label">Економіка</div>
+      <a href="/islands.html">🏝️ Острови та робітники</a>
+      <a href="/refining.html">⚙️ Переробка та Крафт</a>
+      <a href="/arbitrage.html">🚚 Арбітраж та Торгівля</a>
+      <a href="/focus.html">⚡ Ефективність Фокусу</a>
+      <div class="section-label">Гільдія</div>
+      <a href="/guild-islands.html" class="active">🏰 Гільдійський острів</a>
+      <a href="/sets.html">🛡️ Сети та КТА</a>
+      <a href="/treasury.html">💰 Скарбниця</a>
+      <template x-if="user && ['moderator','admin'].includes(user.role)"><a href="/admin.html">🔧 Адмінпанель</a></template>
+          <div class="section-label">Акаунт</div>
+      <a href="/profile.html">👤 Мій профіль</a>
+    </nav>
+  </aside>
+  <div class="main-area">
+    <div class="topbar">
+      <h1>🏰 Гільдійський острів</h1>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="theme-toggle" @click="toggleTheme()"><span x-text="theme==='dark'?'🌙':'☀️'"></span></div>
+        <div class="notif-bell" @click="notifPanelOpen = !notifPanelOpen">🔔<span class="notif-dot" x-show="unreadCount>0"></span></div>
+        <button class="btn-secondary btn-sm" @click="logout()">Вийти</button>
+      </div>
+    </div>
+    <div class="card notif-panel" x-show="notifPanelOpen" @click.outside="notifPanelOpen=false" x-cloak>
+      <template x-for="n in notifications" :key="n.id"><div class="notif-item"><div style="font-weight:600;" x-text="n.title"></div><button class="btn-ghost btn-sm" @click="markRead(n.id)">Прочитано</button></div></template>
+    </div>
+
+    <div class="content">
+
+      <template x-if="!island">
+        <div class="card">
+          <h3 style="margin-top:0;">Острів ще не зареєстровано</h3>
+          <div class="text-muted" style="margin-bottom:12px;font-size:13px;">
+            Купується в Island Merchant у будь-якому столичному місті (Premium не потрібен). Апгрейд рівнів 1–6,
+            кожен займає ~2 хв. На відміну від особистого острова, гільдійський <b>не має грядок/ферм</b> —
+            лише споруди Economy / Crafting / Houses.
+          </div>
+          <template x-if="user && user.role === 'admin'">
+            <div>
+              <div class="grid grid-2">
+                <div class="field"><label>Місто</label><input x-model="newIslandCity" placeholder="Caerleon" /></div>
+                <div class="field"><label>Тір (1-6)</label><input type="number" min="1" max="6" x-model.number="newIslandTier" /></div>
+              </div>
+              <button @click="registerIsland()">Зареєструвати острів</button>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <template x-if="island">
+        <div>
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <h3 style="margin:0;" x-text="island.name"></h3>
+                <div class="text-muted" style="font-size:13px;" x-text="island.city + ' · Тір ' + island.tier + ' · Вкладено ' + fmtSilver(island.silver_invested) + ' срібла'"></div>
+              </div>
+              <template x-if="user && user.role === 'admin'">
+                <div style="display:flex;gap:8px;">
+                  <input type="number" min="0" max="6" x-model.number="island.tier" style="width:70px;" />
+                  <button class="btn-secondary btn-sm" @click="saveIslandTier()">Оновити тір</button>
+                  <button class="btn-sm" @click="generatePlots()">🔄 Згенерувати плоти за тіром</button>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="grid grid-3" style="margin-top:16px;">
+            <template x-for="group in ['large','building','small_building']" :key="group">
+              <div class="card">
+                <h4 style="margin-top:0;" x-text="plotTypeLabel(group)"></h4>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  <template x-for="p in plots.filter(p => p.plot_type === group)" :key="p.id">
+                    <div class="card" style="padding:10px;cursor:pointer;" @click="openPlot(p)">
+                      <div style="display:flex;justify-content:space-between;">
+                        <span x-text="'#' + p.plot_index"></span>
+                        <span class="badge" :class="p.status==='built'?'badge-green':(p.status==='under_construction'?'badge-gold':'badge-gray')" x-text="p.status"></span>
+                      </div>
+                      <div style="font-size:13px;margin-top:4px;" x-text="p.building_label || 'Порожній плот'"></div>
+                    </div>
+                  </template>
+                  <template x-if="plots.filter(p => p.plot_type === group).length === 0">
+                    <div class="text-muted" style="font-size:12px;">Немає плотів цього типу. Натисни "Згенерувати плоти".</div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <h3 style="margin:0;">Робітники гільдійського острова</h3>
+              <button class="btn-sm" @click="showAddLaborer = true">+ Додати робітника</button>
+            </div>
+            <div class="grid grid-3" style="margin-top:12px;">
+              <template x-for="l in laborers" :key="l.id">
+                <div class="card">
+                  <strong x-text="l.building_type + ' (T' + l.building_tier + ')'"></strong>
+                  <div class="text-muted" style="font-size:12px;" x-text="'Виробляє: ' + l.target_item"></div>
+                  <div class="progress-track" style="margin-top:6px;">
+                    <div class="progress-fill" :style="'width:' + (l.happiness_live/10) + '%; background:' + (l.happiness_live>300?'var(--accent-green)':(l.happiness_live>0?'var(--accent-gold)':'var(--accent-red)'))"></div>
+                  </div>
+                  <button class="btn-sm" style="margin-top:8px;" @click="feedLaborer(l.id)">🍽️ Погодувати</button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+
+    </div>
+  </div>
+</div>
+
+<!-- Модалка: керування плотом -->
+<div class="modal-overlay" x-show="activePlot" x-cloak @click.self="activePlot=null">
+  <div class="card modal-box" x-show="activePlot">
+    <h3 style="margin-top:0;" x-text="'Плот #' + activePlot?.plot_index + ' (' + plotTypeLabel(activePlot?.plot_type) + ')'"></h3>
+    <div class="field">
+      <label>Будівля</label>
+      <select x-model="plotForm.buildingCode">
+        <option value="">— порожньо —</option>
+        <template x-for="c in catalog.filter(c => c.required_plot_type === activePlot?.plot_type)" :key="c.code">
+          <option :value="c.code" x-text="c.label + ' (' + c.category + ')'"></option>
+        </template>
+      </select>
+    </div>
+    <div class="grid grid-2">
+      <div class="field"><label>Тір будівлі</label><input type="number" min="4" max="8" x-model.number="plotForm.buildingTier" /></div>
+      <div class="field"><label>Статус</label>
+        <select x-model="plotForm.status">
+          <option value="empty">empty</option><option value="under_construction">under_construction</option><option value="built">built</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Плата за використання (Station Fee)</label><input type="number" x-model.number="plotForm.usageFeeSilver" /></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn-ghost" @click="activePlot=null">Закрити</button>
+      <button @click="savePlot()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" x-show="showAddLaborer" x-cloak @click.self="showAddLaborer=false">
+  <div class="card modal-box">
+    <h3 style="margin-top:0;">Новий робітник острова</h3>
+    <div class="field"><label>Тип будівлі</label><input x-model="newLaborer.buildingType" /></div>
+    <div class="field"><label>Тір (4-8)</label><input type="number" x-model.number="newLaborer.buildingTier" /></div>
+    <div class="field"><label>Виробляє</label><input x-model="newLaborer.targetItem" /></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn-ghost" @click="showAddLaborer=false">Скасувати</button>
+      <button @click="addLaborer()">Додати</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function guildIslandPage() {
+  return {
+    island: null, plots: [], laborers: [], catalog: [],
+    newIslandCity: '', newIslandTier: 1,
+    activePlot: null, plotForm: { buildingCode: '', buildingTier: 4, status: 'empty', usageFeeSilver: 0 },
+    showAddLaborer: false, newLaborer: { buildingType: '', buildingTier: 4, targetItem: '' },
+
+    plotTypeLabel(t) {
+      return { large: 'Great/Large Plot (Guild Hall)', building: 'Building Plot', small_building: 'Small Building Plot' }[t] || t;
+    },
+
+    async load() {
+      this.catalog = await Api.get('/guild-islands/meta/building-catalog');
+      const list = await Api.get('/guild-islands');
+      this.island = list[0] || null;
+      if (this.island) {
+        this.plots = await Api.get(`/guild-islands/${this.island.id}/plots`);
+        this.laborers = await Api.get(`/guild-islands/${this.island.id}/laborers`);
+      }
+    },
+    async registerIsland() {
+      this.island = await Api.post('/guild-islands', { city: this.newIslandCity, tier: this.newIslandTier });
+      await this.load();
+    },
+    async saveIslandTier() {
+      await Api.put(`/guild-islands/${this.island.id}`, { tier: this.island.tier });
+      await this.load();
+    },
+    async generatePlots() {
+      this.plots = await Api.post(`/guild-islands/${this.island.id}/generate-plots`);
+    },
+    openPlot(p) {
+      this.activePlot = p;
+      this.plotForm = { buildingCode: p.building_code || '', buildingTier: p.building_tier || 4, status: p.status, usageFeeSilver: p.usage_fee_silver || 0 };
+    },
+    async savePlot() {
+      await Api.put(`/guild-islands/plots/${this.activePlot.id}`, this.plotForm);
+      this.activePlot = null;
+      this.plots = await Api.get(`/guild-islands/${this.island.id}/plots`);
+    },
+    async addLaborer() {
+      await Api.post(`/guild-islands/${this.island.id}/laborers`, this.newLaborer);
+      this.showAddLaborer = false;
+      this.newLaborer = { buildingType: '', buildingTier: 4, targetItem: '' };
+      this.laborers = await Api.get(`/guild-islands/${this.island.id}/laborers`);
+    },
+    async feedLaborer(id) {
+      await Api.post(`/guild-islands/laborers/${id}/feed`);
+      this.laborers = await Api.get(`/guild-islands/${this.island.id}/laborers`);
+    },
+  };
+}
+</script>
+</body>
+</html>

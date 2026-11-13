@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Вхід — Albion Guild Hub</title>
+<link rel="stylesheet" href="/assets/css/theme.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.14.1/cdn.min.js" defer></script>
+<script src="/assets/js/api.js"></script>
+</head>
+<body class="theme-dark" x-data="loginPage()" x-init="init()" style="display:flex;align-items:center;justify-content:center;min-height:100vh;">
+
+  <div class="card" style="width:100%;max-width:380px;">
+    <div style="text-align:center;margin-bottom:18px;">
+      <div style="font-size:28px;">⚔️</div>
+      <h1 style="margin:6px 0 2px 0;font-size:20px;">Albion Guild Hub</h1>
+      <div class="text-muted" style="font-size:13px;">Економіка та КТА гільдії в одному місці</div>
+    </div>
+
+    <template x-if="error">
+      <div class="badge badge-red" style="display:block;margin-bottom:12px;padding:8px 12px;" x-text="error"></div>
+    </template>
+
+    <form @submit.prevent="login()">
+      <div class="field">
+        <label>Логін</label>
+        <input type="text" x-model="username" required autocomplete="username" />
+      </div>
+      <div class="field">
+        <label>Пароль</label>
+        <input type="password" x-model="password" required autocomplete="current-password" />
+      </div>
+      <button type="submit" style="width:100%;" :disabled="loading">
+        <span x-text="loading ? 'Входимо...' : 'Увійти'"></span>
+      </button>
+    </form>
+
+    <div class="text-muted" style="font-size:12px;margin-top:16px;text-align:center;">
+      Немає акаунта? Звернись до модератора/адміна гільдії — вони видадуть доступ.
+    </div>
+  </div>
+
+<script>
+function loginPage() {
+  return {
+    username: '', password: '', error: '', loading: false,
+    init() {
+      if (Api.token()) window.location.href = '/dashboard.html';
+    },
+    async login() {
+      this.error = ''; this.loading = true;
+      try {
+        const res = await Api.post('/auth/login', { username: this.username, password: this.password });
+        Api.setToken(res.token);
+        Api.setCurrentUser(res.user);
+        window.location.href = '/dashboard.html';
+      } catch (e) {
+        this.error = e.message || 'Не вдалося увійти.';
+      } finally {
+        this.loading = false;
+      }
+    }
+  };
+}
+</script>
+</body>
+</html>
