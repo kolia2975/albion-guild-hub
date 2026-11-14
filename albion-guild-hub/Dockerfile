@@ -1,7 +1,7 @@
 FROM node:24-alpine
 WORKDIR /app
 COPY backend/package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --omit=dev && npm cache clean --force
 COPY --chown=node:node backend/ .
 COPY --chown=node:node frontend/ ./public/
 RUN mkdir -p /app/icon-cache && chown node:node /app/icon-cache
